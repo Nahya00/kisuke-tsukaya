@@ -84,4 +84,22 @@ async def retirer(ctx, membre: discord.Member):
     whitelist_ids.discard(membre.id)
     save_whitelist()
 
-bot.run(os.getenv("DISCORD_TOKEN")
+@bot.command()
+async def liste(ctx):
+    if not is_authorized(ctx):
+        return
+    try:
+        user_list = []
+        for uid in whitelist_ids:
+            member = ctx.guild.get_member(uid)
+            if member:
+                user_list.append(f"- {member.name}#{member.discriminator}")
+            else:
+                user_list.append(f"- ID: {uid} (hors ligne ou quitté)")
+
+        message = "**Liste des membres whitelistés :**\n" + "\n".join(user_list) if user_list else "La whitelist est vide."
+        await ctx.author.send(message)
+    except:
+        pass  # Silencieux si l'utilisateur n'accepte pas les MP
+
+bot.run(os.getenv("DISCORD_TOKEN"))
