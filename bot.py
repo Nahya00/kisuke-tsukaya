@@ -14,7 +14,6 @@ USER_WL_FILE = "whitelist_users.json"
 ROLE_WL_FILE = "whitelist_roles.json"
 LOCK_FILE = "lock_state.json"
 
-# Charger les fichiers
 def load_list(file):
     if os.path.exists(file):
         with open(file, "r") as f:
@@ -61,11 +60,17 @@ async def on_ready():
 @bot.event
 async def on_voice_state_update(member, before, after):
     if lock_active and after.channel and after.channel.id == ID_SALON_VOCAL:
+        print(f"🔍 [LOG] {member} a rejoint le vocal.")
+        print(f"→ Rôles : {[role.name for role in member.roles]}")
+        print(f"→ Est whitelisté ? {is_whitelisted(member)}")
         if not is_whitelisted(member):
             try:
                 await member.move_to(None)
-            except:
-                pass
+                print(f"✅ Expulsé : {member}")
+            except Exception as e:
+                print(f"❌ Erreur lors de l'expulsion de {member} : {e}")
+        else:
+            print(f"⏭️ Non expulsé (whitelist) : {member}")
 
 @bot.command(name="lock")
 async def lock(ctx):
@@ -158,4 +163,3 @@ async def help_cmd(ctx):
     await reply_temp(ctx, help_message, delay=10)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
-
