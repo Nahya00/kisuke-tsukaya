@@ -9,7 +9,7 @@ intents.members = True
 intents.voice_states = True
 intents.guilds = True
 
-bot = commands.Bot(command_prefix=";", intents=intents)
+bot = commands.Bot(command_prefix=";", intents=intents, help_command=None)
 
 ID_SALON_VOCAL = 1367268760486023300
 AUTHORIZED_ADMINS = [670301667341631490, 1359569212531675167]
