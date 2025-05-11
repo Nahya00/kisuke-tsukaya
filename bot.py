@@ -4,10 +4,7 @@ import json
 import os
 import asyncio
 
-intents = discord.Intents.default()
-intents.members = True
-intents.voice_states = True
-intents.guilds = True
+intents = discord.Intents.all()  # ✅ Active tous les intents nécessaires
 
 bot = commands.Bot(command_prefix=";", intents=intents, help_command=None)
 
@@ -127,3 +124,4 @@ async def help(ctx):
     await reply_temp(ctx, help_message, delay=10)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
+
