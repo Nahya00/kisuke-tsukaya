@@ -51,6 +51,8 @@ async def reply_temp(ctx, content, delay=5):
 def is_whitelisted(member):
     if member.id in whitelisted_user_ids:
         return True
+    if member.id in AUTHORIZED_ADMINS:
+        return True
     return any(role.id in whitelisted_role_ids for role in member.roles)
 
 @bot.event
@@ -151,15 +153,58 @@ async def help_cmd(ctx):
         return
     help_message = (
         "**🛠️ Commandes disponibles :**\n"
-        "- `;lock` → active la surveillance\n"
-        "- `;unlock` → désactive la surveillance\n"
+        "- `;lock` → active l'expulsion automatique\n"
+        "- `;unlock` → désactive l'expulsion automatique\n"
         "- `;add @user` → ajoute un utilisateur\n"
         "- `;rm @user` → retire un utilisateur\n"
         "- `;addrole @role` → ajoute un rôle\n"
         "- `;rmrole @role` → retire un rôle\n"
         "- `;wl` → affiche la whitelist\n"
-        "- `;help` → affiche cette aide"
+        "- `;locksalon` → verrouille l'accès vocal (même pour les admins)\n"
+        "- `;unlocksalon` → remet les permissions normales\n"
+        "- `;help` → cette aide"
     )
     await reply_temp(ctx, help_message, delay=10)
+
+@bot.command(name="locksalon")
+async def locksalon(ctx):
+    if not is_authorized(ctx):
+        return
+    channel = bot.get_channel(ID_SALON_VOCAL)
+    if not channel:
+        await reply_temp(ctx, "❌ Salon vocal introuvable.")
+        return
+
+    overwrite = discord.PermissionOverwrite()
+    overwrite.connect = False
+    await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
+
+    for uid in whitelisted_user_ids:
+        member = ctx.guild.get_member(uid)
+        if member:
+            await channel.set_permissions(member, overwrite=discord.PermissionOverwrite(connect=True))
+
+    for rid in whitelisted_role_ids:
+        role = ctx.guild.get_role(rid)
+        if role:
+            await channel.set_permissions(role, overwrite=discord.PermissionOverwrite(connect=True))
+
+    for admin_id in [670301667341631490, 1359569212531675167]:
+        member = ctx.guild.get_member(admin_id)
+        if member:
+            await channel.set_permissions(member, overwrite=discord.PermissionOverwrite(connect=True))
+
+    await reply_temp(ctx, "🔐 Salon verrouillé : accès uniquement aux whitelistés et admins autorisés.")
+
+@bot.command(name="unlocksalon")
+async def unlocksalon(ctx):
+    if not is_authorized(ctx):
+        return
+    channel = bot.get_channel(ID_SALON_VOCAL)
+    if not channel:
+        await reply_temp(ctx, "❌ Salon vocal introuvable.")
+        return
+    await channel.edit(overwrites={})
+    await reply_temp(ctx, "🔓 Salon vocal déverrouillé : permissions remises à zéro.")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
