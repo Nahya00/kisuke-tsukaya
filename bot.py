@@ -84,4 +84,4 @@ async def retirer(ctx, membre: discord.Member):
     whitelist_ids.discard(membre.id)
     save_whitelist()
 
-bot.run("YOUR_TOKEN")
+bot.run(os.getenv("DISCORD_TOKEN")
