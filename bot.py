@@ -4,33 +4,35 @@ import json
 import os
 import asyncio
 
-intents = discord.Intents.all()  # ✅ Active tous les intents nécessaires
-
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=";", intents=intents, help_command=None)
 
 ID_SALON_VOCAL = 1367268760486023300
 AUTHORIZED_ADMINS = [670301667341631490, 1359569212531675167]
 
-WHITELIST_FILE = "whitelist.json"
+USER_WL_FILE = "whitelist_users.json"
+ROLE_WL_FILE = "whitelist_roles.json"
 LOCK_FILE = "lock_state.json"
 
-# Charger la whitelist
-if os.path.exists(WHITELIST_FILE):
-    with open(WHITELIST_FILE, "r") as f:
-        whitelist_ids = set(json.load(f))
-else:
-    whitelist_ids = set()
+# Charger les fichiers
+def load_list(file):
+    if os.path.exists(file):
+        with open(file, "r") as f:
+            return set(json.load(f))
+    return set()
 
-# Charger l'état du verrouillage
+def save_list(file, data):
+    with open(file, "w") as f:
+        json.dump(list(data), f)
+
+whitelisted_user_ids = load_list(USER_WL_FILE)
+whitelisted_role_ids = load_list(ROLE_WL_FILE)
+
 if os.path.exists(LOCK_FILE):
     with open(LOCK_FILE, "r") as f:
         lock_active = json.load(f).get("locked", False)
 else:
     lock_active = False
-
-def save_whitelist():
-    with open(WHITELIST_FILE, "w") as f:
-        json.dump(list(whitelist_ids), f)
 
 def save_lock_state():
     with open(LOCK_FILE, "w") as f:
@@ -47,6 +49,11 @@ async def reply_temp(ctx, content, delay=5):
     except:
         pass
 
+def is_whitelisted(member):
+    if member.id in whitelisted_user_ids:
+        return True
+    return any(role.id in whitelisted_role_ids for role in member.roles)
+
 @bot.event
 async def on_ready():
     print(f"Bot prêt : {bot.user}")
@@ -54,14 +61,14 @@ async def on_ready():
 @bot.event
 async def on_voice_state_update(member, before, after):
     if lock_active and after.channel and after.channel.id == ID_SALON_VOCAL:
-        if member.id not in whitelist_ids:
+        if not is_whitelisted(member):
             try:
                 await member.move_to(None)
             except:
                 pass
 
-@bot.command()
-async def verrouiller(ctx):
+@bot.command(name="lock")
+async def lock(ctx):
     global lock_active
     if not is_authorized(ctx):
         return
@@ -69,8 +76,8 @@ async def verrouiller(ctx):
     save_lock_state()
     await reply_temp(ctx, "🔒 Salon vocal verrouillé.")
 
-@bot.command()
-async def deverrouiller(ctx):
+@bot.command(name="unlock")
+async def unlock(ctx):
     global lock_active
     if not is_authorized(ctx):
         return
@@ -78,47 +85,74 @@ async def deverrouiller(ctx):
     save_lock_state()
     await reply_temp(ctx, "🔓 Salon vocal déverrouillé.")
 
-@bot.command()
-async def ajouter(ctx, membre: discord.Member):
+@bot.command(name="add")
+async def add(ctx, membre: discord.Member):
     if not is_authorized(ctx):
         return
-    whitelist_ids.add(membre.id)
-    save_whitelist()
+    whitelisted_user_ids.add(membre.id)
+    save_list(USER_WL_FILE, whitelisted_user_ids)
     await reply_temp(ctx, f"✅ {membre.display_name} ajouté à la whitelist.")
 
-@bot.command()
-async def retirer(ctx, membre: discord.Member):
+@bot.command(name="rm")
+async def rm(ctx, membre: discord.Member):
     if not is_authorized(ctx):
         return
-    whitelist_ids.discard(membre.id)
-    save_whitelist()
+    whitelisted_user_ids.discard(membre.id)
+    save_list(USER_WL_FILE, whitelisted_user_ids)
     await reply_temp(ctx, f"❌ {membre.display_name} retiré de la whitelist.")
 
-@bot.command()
-async def liste(ctx):
+@bot.command(name="addrole")
+async def addrole(ctx, role: discord.Role):
     if not is_authorized(ctx):
         return
-    user_list = []
-    for uid in whitelist_ids:
+    whitelisted_role_ids.add(role.id)
+    save_list(ROLE_WL_FILE, whitelisted_role_ids)
+    await reply_temp(ctx, f"✅ Rôle {role.name} ajouté à la whitelist.")
+
+@bot.command(name="rmrole")
+async def rmrole(ctx, role: discord.Role):
+    if not is_authorized(ctx):
+        return
+    whitelisted_role_ids.discard(role.id)
+    save_list(ROLE_WL_FILE, whitelisted_role_ids)
+    await reply_temp(ctx, f"❌ Rôle {role.name} retiré de la whitelist.")
+
+@bot.command(name="wl")
+async def wl(ctx):
+    if not is_authorized(ctx):
+        return
+    user_lines = []
+    role_lines = []
+    for uid in whitelisted_user_ids:
         member = ctx.guild.get_member(uid)
         if member:
-            user_list.append(f"- {member.name}#{member.discriminator}")
+            user_lines.append(f"- {member.name}#{member.discriminator}")
         else:
-            user_list.append(f"- ID: {uid} (hors ligne ou quitté)")
-    message = "**📋 Whitelist actuelle :**\n" + "\n".join(user_list) if user_list else "La whitelist est vide."
+            user_lines.append(f"- ID: {uid}")
+    for rid in whitelisted_role_ids:
+        role = ctx.guild.get_role(rid)
+        if role:
+            role_lines.append(f"- @{role.name}")
+        else:
+            role_lines.append(f"- ID: {rid}")
+    message = "**📋 Whitelist actuelle :**\n"
+    message += "\n**Utilisateurs :**\n" + ("\n".join(user_lines) if user_lines else "Aucun.") + "\n"
+    message += "\n**Rôles :**\n" + ("\n".join(role_lines) if role_lines else "Aucun.")
     await reply_temp(ctx, message, delay=10)
 
-@bot.command()
-async def help(ctx):
+@bot.command(name="help")
+async def help_cmd(ctx):
     if not is_authorized(ctx):
         return
     help_message = (
         "**🛠️ Commandes disponibles :**\n"
-        "- `;verrouiller` → active la surveillance du salon vocal\n"
-        "- `;deverrouiller` → désactive la surveillance\n"
-        "- `;ajouter @user` → ajoute un utilisateur à la whitelist\n"
-        "- `;retirer @user` → enlève un utilisateur de la whitelist\n"
-        "- `;liste` → affiche les membres whitelistés\n"
+        "- `;lock` → active la surveillance\n"
+        "- `;unlock` → désactive la surveillance\n"
+        "- `;add @user` → ajoute un utilisateur\n"
+        "- `;rm @user` → retire un utilisateur\n"
+        "- `;addrole @role` → ajoute un rôle\n"
+        "- `;rmrole @role` → retire un rôle\n"
+        "- `;wl` → affiche la whitelist\n"
         "- `;help` → affiche cette aide"
     )
     await reply_temp(ctx, help_message, delay=10)
