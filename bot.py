@@ -9,6 +9,7 @@ bot = commands.Bot(command_prefix=";", intents=intents, help_command=None)
 
 ID_SALON_VOCAL = 1367268760486023300
 AUTHORIZED_ADMINS = [670301667341631490, 1359569212531675167]
+BLOCKED_ADMIN_ROLE_ID = 1365837084233039932
 
 USER_WL_FILE = "whitelist_users.json"
 ROLE_WL_FILE = "whitelist_roles.json"
@@ -58,7 +59,6 @@ def is_whitelisted(member):
 @bot.event
 async def on_ready():
     print(f"Bot prêt : {bot.user}")
-
 @bot.event
 async def on_voice_state_update(member, before, after):
     if lock_active and after.channel and after.channel.id == ID_SALON_VOCAL:
@@ -91,7 +91,6 @@ async def unlock(ctx):
     lock_active = False
     save_lock_state()
     await reply_temp(ctx, "🔓 Expulsion automatique désactivée.")
-
 @bot.command(name="add")
 async def add(ctx, membre: discord.Member):
     if not is_authorized(ctx):
@@ -100,8 +99,8 @@ async def add(ctx, membre: discord.Member):
     save_list(USER_WL_FILE, whitelisted_user_ids)
     await reply_temp(ctx, f"✅ {membre.display_name} ajouté à la whitelist.")
 
-@bot.command(name="rm")
-async def rm(ctx, membre: discord.Member):
+@bot.command(name="del")
+async def delete(ctx, membre: discord.Member):
     if not is_authorized(ctx):
         return
     whitelisted_user_ids.discard(membre.id)
@@ -116,14 +115,13 @@ async def addrole(ctx, role: discord.Role):
     save_list(ROLE_WL_FILE, whitelisted_role_ids)
     await reply_temp(ctx, f"✅ Rôle {role.name} ajouté à la whitelist.")
 
-@bot.command(name="rmrole")
-async def rmrole(ctx, role: discord.Role):
+@bot.command(name="delrole")
+async def delrole(ctx, role: discord.Role):
     if not is_authorized(ctx):
         return
     whitelisted_role_ids.discard(role.id)
     save_list(ROLE_WL_FILE, whitelisted_role_ids)
     await reply_temp(ctx, f"❌ Rôle {role.name} retiré de la whitelist.")
-
 @bot.command(name="wl")
 async def wl(ctx):
     if not is_authorized(ctx):
@@ -140,7 +138,6 @@ async def wl(ctx):
     msg += "\n**Utilisateurs :**\n" + ("\n".join(user_lines) if user_lines else "Aucun.") + "\n"
     msg += "\n**Rôles :**\n" + ("\n".join(role_lines) if role_lines else "Aucun.")
     await reply_temp(ctx, msg, delay=10)
-
 @bot.command(name="help")
 async def help_cmd(ctx):
     if not is_authorized(ctx):
@@ -148,13 +145,13 @@ async def help_cmd(ctx):
     msg = (
         "**🛠️ Commandes :**\n"
         "- `;lock` / `;unlock` → activer/désactiver l'expulsion auto\n"
-        "- `;add @user` / `;rm @user` → gérer les whitelistés\n"
-        "- `;addrole @role` / `;rmrole @role` → whitelist via rôle\n"
+        "- `;add @user` / `;del @user` → gérer la whitelist utilisateurs\n"
+        "- `;addrole @role` / `;delrole @role` → gérer la whitelist rôles\n"
         "- `;wl` → voir les whitelistés\n"
-        "- `;locksalon` / `;unlocksalon` → modifier les permissions du vocal"
+        "- `;locksalon` / `;unlocksalon` → verrouiller/déverrouiller le salon vocal\n"
+        "- `;help` → afficher cette aide"
     )
     await reply_temp(ctx, msg, delay=10)
-
 @bot.command(name="locksalon")
 async def locksalon(ctx):
     if not is_authorized(ctx):
@@ -165,8 +162,14 @@ async def locksalon(ctx):
         await reply_temp(ctx, "❌ Salon introuvable.")
         return
 
-    await channel.edit(sync_permissions=False)
+    await channel.edit(sync_permissions=False, overwrites={})
+
     await channel.set_permissions(ctx.guild.default_role, overwrite=discord.PermissionOverwrite(connect=False))
+
+    # Bloque explicitement le rôle admin (PA)
+    role = ctx.guild.get_role(BLOCKED_ADMIN_ROLE_ID)
+    if role:
+        await channel.set_permissions(role, overwrite=discord.PermissionOverwrite(connect=False))
 
     for uid in whitelisted_user_ids.union(set(AUTHORIZED_ADMINS)):
         member = ctx.guild.get_member(uid)
@@ -178,7 +181,7 @@ async def locksalon(ctx):
         if role:
             await channel.set_permissions(role, overwrite=discord.PermissionOverwrite(connect=True))
 
-    await reply_temp(ctx, "🔐 Salon verrouillé sans affecter les autres.")
+    await reply_temp(ctx, "🔐 Salon verrouillé : accès uniquement whitelistés + admins autorisés.")
 
 @bot.command(name="unlocksalon")
 async def unlocksalon(ctx):
@@ -191,6 +194,5 @@ async def unlocksalon(ctx):
         return
 
     await channel.edit(overwrites={})
-    await reply_temp(ctx, "🔓 Salon déverrouillé : permissions remises à zéro.")
-
+    await reply_temp(ctx, "🔓 Salon vocal déverrouillé.")
 bot.run(os.getenv("DISCORD_TOKEN"))
