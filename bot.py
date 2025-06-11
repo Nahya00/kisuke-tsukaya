@@ -7,9 +7,9 @@ import asyncio
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=";", intents=intents, help_command=None)
 
-ID_SALON_VOCAL = 1367268760486023300
+ID_SALON_VOCAL = 1379270524886188074
 AUTHORIZED_ADMINS = [670301667341631490, 1359569212531675167]
-BLOCKED_ADMIN_ROLE_ID = 1365837084233039932
+BLOCKED_ADMIN_ROLE_ID = 1379268686141063289, 1381220956529496085
 
 USER_WL_FILE = "whitelist_users.json"
 ROLE_WL_FILE = "whitelist_roles.json"
